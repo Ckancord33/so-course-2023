@@ -1,9 +1,30 @@
 from flask import Flask
+import os
 
 # Se crea la aplicación Flask
 app = Flask(__name__)
 
-# --- ENDPOINTS DEL PROYECTO ---
+# --- Definir la ruta a las carpetas de archivos ---
+PUBLIC_DIR = '/usr/src/app/sync_files/public'
+
+# --- ENDPOINTS INTERNOS ---
+
+# 1. Este endpoint devuelve todos los archivos publicos del contenedor
+# es para que los contenedores se pregunten entre sí por sus archivos públicos.
+@app.route('/internal/public-files')
+def list_own_public_files():
+  """
+  Lista los archivos que se encuentran en la carpeta 'public' de este contenedor.
+  """
+  try:
+    # os.listdir() devuelve una lista con los nombres de los archivos en la ruta
+    files = os.listdir(PUBLIC_DIR)
+    return {'status': 'success', 'files': files}
+  except FileNotFoundError:
+    # Manejo de error por si la carpeta no existe
+    return {'status': 'error', 'message': 'El directorio público no fue encontrado.'}, 404
+
+# --- ENDPOINTS DEL PROYECTO (Externos) ---
 
 # 1. Endpoint para listar archivos de un contenedor específico
 #    Responde a URLs como: /storage/abcde12345
