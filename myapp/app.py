@@ -1,11 +1,39 @@
-from flask import Flask
+from flask import Flask, send_from_directory, jsonify
 import os
+import requests
 
 # Se crea la aplicación Flask
 app = Flask(__name__)
 
 # --- Definir la ruta a las carpetas de archivos ---
 PUBLIC_DIR = '/usr/src/app/sync_files/public'
+PRIVATE_DIR = '/usr/src/app/sync_files/private'
+
+# --- Obtener la lista de compañeros de la red ---
+# Leemos la variable de entorno PEERS que pasamos con docker run
+containers_str = os.getenv('CONTAINERS', '')
+CONTAINERS = containers_str.split(',') if containers_str else []
+
+# --- Funcion para consultar los archivos publicos de un contenedor ---
+def get_container_public_files(container_name):
+  """
+  Función helper que consulta los archivos públicos de un contenedor específico.
+  Retorna una lista de archivos o una lista vacía si hay error.
+  """
+  try:
+    url = f'http://{container_name}:5000/internal/public-files'
+    print(f"Consultando al contenedor: {url}")
+    response = requests.get(url, timeout=3)
+    
+    if response.status_code == 200:
+      return response.json().get('files', [])
+    else:
+      print(f"El contenedor {container_name} devolvió un error: {response.status_code}")
+      return []
+      
+  except requests.exceptions.RequestException as e:
+    print(f"ERROR: No se pudo conectar con el contenedor '{container_name}'. Motivo: {e}")
+    return []
 
 # --- ENDPOINTS INTERNOS ---
 
@@ -19,10 +47,34 @@ def list_own_public_files():
   try:
     # os.listdir() devuelve una lista con los nombres de los archivos en la ruta
     files = os.listdir(PUBLIC_DIR)
-    return {'status': 'success', 'files': files}
+    return jsonify({'status': 'success', 'files': files})
   except FileNotFoundError:
     # Manejo de error por si la carpeta no existe
-    return {'status': 'error', 'message': 'El directorio público no fue encontrado.'}, 404
+    return jsonify({'status': 'error', 'message': 'El directorio público no fue encontrado.'}), 404
+
+# 2. Endpoint para comprobar si un archivo existe localmente
+@app.route('/internal/has-file/<path:filename>')
+def has_file(filename):
+    """
+    Comprueba si un archivo específico existe en la carpeta pública local.
+    """
+    file_path = os.path.join(PUBLIC_DIR, filename)
+    if os.path.exists(file_path):
+        return jsonify({'has_file': True})
+    else:
+        return jsonify({'has_file': False})
+
+# 3. Endpoint para que un peer entregue un archivo a otro peer
+@app.route('/internal/get-file/<path:filename>')
+def get_file(filename):
+    """
+    Sirve un archivo desde el directorio público local.
+    """
+    try:
+        # send_from_directory es la forma segura de Flask para enviar archivos
+        return send_from_directory(PUBLIC_DIR, filename, as_attachment=True)
+    except FileNotFoundError:
+        return "Archivo no encontrado", 404
 
 # --- ENDPOINTS DEL PROYECTO (Externos) ---
 
@@ -32,11 +84,19 @@ def list_own_public_files():
 def list_specific_files(uid):
   """
   Lista los archivos publicos y privados de un contenedor.
-  Por ahora, solo devuelve un mensaje de prueba.
   """
-  return {
-    'message': f'Aquí se mostrarán los archivos del contenedor con ID: {uid}'
-  }
+  if uid not in CONTAINERS:
+    return jsonify({'message': f'Contenedor {uid} no encontrado en la red.'}), 404
+  
+  files = get_container_public_files(uid)
+  
+  if files:
+    return jsonify({
+      'message': f'Archivos del contenedor {uid}',
+      'files': files
+    })
+  else:
+    return jsonify({'message': f'No se pudieron obtener los archivos del contenedor {uid}.'}), 503
 
 # 2. Endpoint para listar todos los archivos públicos de la red
 #    Responde a la URL: /public/
@@ -44,24 +104,59 @@ def list_specific_files(uid):
 def list_public_files():
   """
   Lista todos los archivos de la carpeta 'public' de todos los contenedores.
-  Por ahora, solo devuelve un mensaje de prueba.
   """
-  return {
-    'message': 'Aquí se mostrarán todos los archivos públicos de la red.'
-  }
+  all_files = []
+  print(f"Coordinador consultando a los contenedores: {CONTAINERS}")
+
+  # Iterar sobre la lista de todos los contenedores en la red
+  for container in CONTAINERS:
+    files = get_container_public_files(container)
+    all_files.extend(files)
+
+  return jsonify({
+    'message': 'Agregación de archivos públicos de la red completada.',
+    'contenedores_consultados': CONTAINERS,
+    'files': all_files
+  })
 
 # 3. Endpoint para descargar un archivo
 #    Responde a URLs como: /download/mi_archivo.txt
 @app.route('/download/<path:name_ext>')
 def download_file(name_ext):
   """
-  Permite la descarga de un archivo específico.
-  Por ahora, solo devuelve un mensaje de prueba.
+  Busca un archivo en toda la red y lo sirve para su descarga.
+  Busca en todos los contenedores incluido él mismo.
   """
-  # El <path:..> permite que el nombre del archivo incluya puntos y barras en la variable
-  return {
-    'message': f'Aquí comenzaría la descarga del archivo: {name_ext}'
-  }
+  print(f"Solicitud de descarga para el archivo: {name_ext}")
+  
+  # Iterar sobre todos los contenedores para encontrar quién tiene el archivo
+  for container in CONTAINERS:
+    try:
+      print(f"Verificando si el contenedor '{container}' tiene el archivo...")
+      
+      # 1. Preguntar al contenedor qué archivos tiene
+      files = get_container_public_files(container)
+      
+      # Si el contenedor tiene el archivo en su lista
+      if name_ext in files:
+        print(f"¡Archivo encontrado en el contenedor '{container}'!")
+        
+        # 2. Pedirle el archivo directamente al contenedor para servirlo
+        download_url = f'http://{container}:5000/internal/get-file/{name_ext}'
+        file_response = requests.get(download_url, stream=True, timeout=30)
+        
+        if file_response.status_code == 200:
+          # Devolvemos la respuesta del otro contenedor directamente al usuario
+          return file_response.content, file_response.status_code, dict(file_response.headers)
+        else:
+          print(f"Error al descargar desde {container}: {file_response.status_code}")
+
+    except requests.exceptions.RequestException as e:
+      print(f"Error al contactar al contenedor '{container}' para la descarga: {e}")
+      continue  # Continuar con el siguiente contenedor
+
+  # Si el bucle termina y no se encontró el archivo
+  return jsonify({'status': 'error', 'message': 'Archivo no encontrado en la red.'}), 404
 
 # 4. Endpoint para subir un archivo a un contenedor
 #    Responde a URLs como: /upload/abcde12345/nuevo_archivo.txt
@@ -72,14 +167,14 @@ def upload_file(uid, name_ext):
   Permite subir un archivo a un contenedor específico.
   Por ahora, solo devuelve un mensaje de prueba.
   """
-  return {
+  return jsonify({
     'message': f'Aquí se subiría el archivo {name_ext} al contenedor {uid}.'
-  }
+  })
 
 # --- Endpoint de prueba para la raíz ---
 @app.route('/')
 def index():
-    return {'message': 'El servidor Synchrontainer está funcionando!'}
+    return jsonify({'message': 'El servidor Synchrontainer está funcionando!'})
 
 
 # Se asegura de que el servidor sea accesible desde fuera del contenedor
