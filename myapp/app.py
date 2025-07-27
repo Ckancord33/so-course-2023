@@ -156,21 +156,30 @@ def list_public_files():
 def download_file(name_ext):
   """
   Busca un archivo en toda la red y lo sirve para su descarga.
-  Busca en todos los contenedores incluido él mismo.
+  Busca archivos públicos en todos los contenedores y archivos privados solo en el contenedor actual.
   """
   print(f"Solicitud de descarga para el archivo: {name_ext}")
   
-  # Iterar sobre todos los contenedores para encontrar quién tiene el archivo
+  # Primero buscar en archivos privados del contenedor actual
+  try:
+    private_file_path = os.path.join(PRIVATE_DIR, name_ext)
+    if os.path.exists(private_file_path):
+      print(f"¡Archivo privado encontrado en el contenedor actual!")
+      return send_from_directory(PRIVATE_DIR, name_ext, as_attachment=True)
+  except Exception as e:
+    print(f"Error al buscar en archivos privados: {e}")
+  
+  # Luego buscar en archivos públicos de todos los contenedores
   for container in CONTAINERS:
     try:
-      print(f"Verificando si el contenedor '{container}' tiene el archivo...")
+      print(f"Verificando archivos públicos del contenedor '{container}'...")
       
-      # 1. Preguntar al contenedor qué archivos tiene
+      # 1. Preguntar al contenedor qué archivos públicos tiene
       files = get_container_public_files(container)
       
-      # Si el contenedor tiene el archivo en su lista
+      # Si el contenedor tiene el archivo en su lista pública
       if name_ext in files:
-        print(f"¡Archivo encontrado en el contenedor '{container}'!")
+        print(f"¡Archivo público encontrado en el contenedor '{container}'!")
         
         # 2. Pedirle el archivo directamente al contenedor para servirlo
         download_url = f'http://{container}:5000/internal/get-file/{name_ext}'
