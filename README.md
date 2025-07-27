@@ -106,3 +106,34 @@ CONTAINERS="contenedor1,contenedor2"
 docker run -d --name contenedor1 --network synchrontainer-network -p 5000:5000 -e CONTAINERS=$CONTAINERS -e MY_CONTAINER=contenedor1 synchrontainer
 docker run -d --name contenedor2 --network synchrontainer-network -p 5001:5000 -e CONTAINERS=$CONTAINERS -e MY_CONTAINER=contenedor2 synchrontainer
 ```
+
+## 🚀 Despliegue Automático
+
+Para hacer el proceso más rápido y evitar repetir comandos, se incluye un script de bash que automatiza todo el proceso:
+
+### Script `deploy.sh`
+
+Primero dale permisos de ejecución al script:
+
+```bash
+chmod +x deploy.sh
+```
+
+Luego ejecuta el script:
+
+```bash
+./deploy.sh
+```
+
+Este script realiza automáticamente todos los pasos necesarios:
+
+1. **Limpia el entorno**: Detiene y elimina contenedores existentes con los mismos nombres
+2. **Crea la red Docker**: Configura la red `synchrontainer-network` si no existe
+3. **Construye la imagen**: Genera una nueva imagen `synchrontainer` con los cambios más recientes
+4. **Lanza los contenedores**: Crea y ejecuta ambos contenedores con toda la configuración necesaria
+
+**Ventajas del script:**
+- ✅ Reinicia completamente el sistema con una sola línea
+- ✅ Siempre usa la versión más reciente del código
+- ✅ No necesitas recordar todos los comandos Docker
+- ✅ Evita errores de configuración manual
