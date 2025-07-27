@@ -14,6 +14,9 @@ PRIVATE_DIR = '/usr/src/app/sync_files/private'
 containers_str = os.getenv('CONTAINERS', '')
 CONTAINERS = containers_str.split(',') if containers_str else []
 
+# --- Obtener el nombre del contenedor actual ---
+ACTUAL_CONTAINER = os.getenv('MY_CONTAINER', '')
+
 # --- Funcion para consultar los archivos publicos de un contenedor ---
 def get_container_public_files(container_name):
   """
@@ -97,7 +100,14 @@ def list_specific_files(uid):
     })
   else:
     return jsonify({'message': f'No se pudieron obtener los archivos del contenedor {uid}.'}), 503
-
+  
+  if uid == ACTUAL_CONTAINER:
+    try:
+      private_files = os.listdir(PRIVATE_DIR)
+    except FileNotFoundError:
+      private_files = []
+      return jsonify({'files_privados': private_files})
+    
 # 2. Endpoint para listar todos los archivos públicos de la red
 #    Responde a la URL: /public/
 @app.route('/public/')
