@@ -207,6 +207,7 @@ def upload_file(uid, name_ext):
   Permite subir un archivo a un contenedor específico.
   Por ahora, solo devuelve un mensaje de prueba.
   """
+<<<<<<< HEAD
    if uid not in CONTAINERS:
         return jsonify({'status': 'error', 'message': f'Contenedor {uid} no encontrado.'}), 404
 
@@ -217,6 +218,14 @@ def upload_file(uid, name_ext):
         return jsonify({'status': 'success', 'message': f'Archivo reenviado a {uid}.', 'dest_response': resp.json()})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+=======
+
+
+  get_file(name_ext)
+  return jsonify({
+    'message': f'Aquí se subiría el archivo {name_ext} al contenedor {uid}.'
+  })
+>>>>>>> b6cc54be3a247981258de029a59f5e7549de1e91
 
 # --- Endpoint de prueba para la raíz ---
 @app.route('/')
