@@ -167,6 +167,9 @@ def upload_file(uid, name_ext):
   Permite subir un archivo a un contenedor específico.
   Por ahora, solo devuelve un mensaje de prueba.
   """
+
+
+  get_file(name_ext)
   return jsonify({
     'message': f'Aquí se subiría el archivo {name_ext} al contenedor {uid}.'
   })
