@@ -14,6 +14,9 @@ PRIVATE_DIR = '/usr/src/app/sync_files/private'
 containers_str = os.getenv('CONTAINERS', '')
 CONTAINERS = containers_str.split(',') if containers_str else []
 
+# --- Obtener el nombre del contenedor actual ---
+ACTUAL_CONTAINER = os.getenv('MY_CONTAINER', '')
+
 # --- Funcion para consultar los archivos publicos de un contenedor ---
 def get_container_public_files(container_name):
   """
@@ -84,20 +87,36 @@ def get_file(filename):
 def list_specific_files(uid):
   """
   Lista los archivos publicos y privados de un contenedor.
+  Si la solicitud es del mismo contenedor, incluye archivos privados.
   """
   if uid not in CONTAINERS:
     return jsonify({'message': f'Contenedor {uid} no encontrado en la red.'}), 404
   
-  files = get_container_public_files(uid)
+  # Obtener archivos públicos
+  public_files = get_container_public_files(uid)
   
-  if files:
-    return jsonify({
-      'message': f'Archivos del contenedor {uid}',
-      'files': files
-    })
-  else:
+  # Si no se pudieron obtener los archivos públicos
+  if not public_files and uid != ACTUAL_CONTAINER:
     return jsonify({'message': f'No se pudieron obtener los archivos del contenedor {uid}.'}), 503
-
+  
+  # Preparar respuesta base
+  response_data = {
+    'message': f'Archivos del contenedor {uid}',
+    'files_publicos': public_files
+  }
+  
+  # Si la solicitud es del mismo contenedor, incluir archivos privados
+  if uid == ACTUAL_CONTAINER:
+    try:
+      private_files = os.listdir(PRIVATE_DIR)
+    except FileNotFoundError:
+      private_files = []
+    
+    response_data['files_privados'] = private_files
+    response_data['message'] = f'Archivos públicos y privados del contenedor {uid}'
+  
+  return jsonify(response_data)
+    
 # 2. Endpoint para listar todos los archivos públicos de la red
 #    Responde a la URL: /public/
 @app.route('/public/')
@@ -125,21 +144,30 @@ def list_public_files():
 def download_file(name_ext):
   """
   Busca un archivo en toda la red y lo sirve para su descarga.
-  Busca en todos los contenedores incluido él mismo.
+  Busca archivos públicos en todos los contenedores y archivos privados solo en el contenedor actual.
   """
   print(f"Solicitud de descarga para el archivo: {name_ext}")
   
-  # Iterar sobre todos los contenedores para encontrar quién tiene el archivo
+  # Primero buscar en archivos privados del contenedor actual
+  try:
+    private_file_path = os.path.join(PRIVATE_DIR, name_ext)
+    if os.path.exists(private_file_path):
+      print(f"¡Archivo privado encontrado en el contenedor actual!")
+      return send_from_directory(PRIVATE_DIR, name_ext, as_attachment=True)
+  except Exception as e:
+    print(f"Error al buscar en archivos privados: {e}")
+  
+  # Luego buscar en archivos públicos de todos los contenedores
   for container in CONTAINERS:
     try:
-      print(f"Verificando si el contenedor '{container}' tiene el archivo...")
+      print(f"Verificando archivos públicos del contenedor '{container}'...")
       
-      # 1. Preguntar al contenedor qué archivos tiene
+      # 1. Preguntar al contenedor qué archivos públicos tiene
       files = get_container_public_files(container)
       
-      # Si el contenedor tiene el archivo en su lista
+      # Si el contenedor tiene el archivo en su lista pública
       if name_ext in files:
-        print(f"¡Archivo encontrado en el contenedor '{container}'!")
+        print(f"¡Archivo público encontrado en el contenedor '{container}'!")
         
         # 2. Pedirle el archivo directamente al contenedor para servirlo
         download_url = f'http://{container}:5000/internal/get-file/{name_ext}'
