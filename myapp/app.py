@@ -87,26 +87,35 @@ def get_file(filename):
 def list_specific_files(uid):
   """
   Lista los archivos publicos y privados de un contenedor.
+  Si la solicitud es del mismo contenedor, incluye archivos privados.
   """
   if uid not in CONTAINERS:
     return jsonify({'message': f'Contenedor {uid} no encontrado en la red.'}), 404
   
-  files = get_container_public_files(uid)
+  # Obtener archivos públicos
+  public_files = get_container_public_files(uid)
   
-  if files:
-    return jsonify({
-      'message': f'Archivos del contenedor {uid}',
-      'files': files
-    })
-  else:
+  # Si no se pudieron obtener los archivos públicos
+  if not public_files and uid != ACTUAL_CONTAINER:
     return jsonify({'message': f'No se pudieron obtener los archivos del contenedor {uid}.'}), 503
   
+  # Preparar respuesta base
+  response_data = {
+    'message': f'Archivos del contenedor {uid}',
+    'files_publicos': public_files
+  }
+  
+  # Si la solicitud es del mismo contenedor, incluir archivos privados
   if uid == ACTUAL_CONTAINER:
     try:
       private_files = os.listdir(PRIVATE_DIR)
     except FileNotFoundError:
       private_files = []
-      return jsonify({'files_privados': private_files})
+    
+    response_data['files_privados'] = private_files
+    response_data['message'] = f'Archivos públicos y privados del contenedor {uid}'
+  
+  return jsonify(response_data)
     
 # 2. Endpoint para listar todos los archivos públicos de la red
 #    Responde a la URL: /public/
