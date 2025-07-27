@@ -78,6 +78,18 @@ def get_file(filename):
         return send_from_directory(PUBLIC_DIR, filename, as_attachment=True)
     except FileNotFoundError:
         return "Archivo no encontrado", 404
+# 4. Endpoint para subir archivos al contenedor actual
+ def generate_file(filename):
+ @app.route('/internal/upload/<path:filename>',methods=['POST']) 
+
+ file_path = os.path.join(PUBLIC_DIR, filename)
+  try:
+        with open(file_path, 'wb') as f:
+            f.write(request.data)
+        return jsonify({'status': 'success', 'message': f'Archivo {filename} guardado.'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 # --- ENDPOINTS DEL PROYECTO (Externos) ---
 
@@ -186,9 +198,16 @@ def upload_file(uid, name_ext):
   Permite subir un archivo a un contenedor específico.
   Por ahora, solo devuelve un mensaje de prueba.
   """
-  return jsonify({
-    'message': f'Aquí se subiría el archivo {name_ext} al contenedor {uid}.'
-  })
+   if uid not in CONTAINERS:
+        return jsonify({'status': 'error', 'message': f'Contenedor {uid} no encontrado.'}), 404
+
+    # Reenvia el archivo al contenedor destino con una solicitud "POST"
+    dest_url = f'http://{uid}:5000/internal/upload/{name_ext}'
+    try:
+        resp = requests.post(dest_url, data=request.data)
+        return jsonify({'status': 'success', 'message': f'Archivo reenviado a {uid}.', 'dest_response': resp.json()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # --- Endpoint de prueba para la raíz ---
 @app.route('/')
