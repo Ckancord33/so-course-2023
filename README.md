@@ -103,6 +103,6 @@ docker network create synchrontainer-network
 
 ```bash
 CONTAINERS="contenedor1,contenedor2"
-docker run -d --name contenedor1 --network synchrontainer-network -p 5000:5000 -e CONTAINERS=$CONTAINERS synchrontainer
-docker run -d --name contenedor2 --network synchrontainer-network -p 5001:5000 -e CONTAINERS=$CONTAINERS synchrontainer
+docker run -d --name contenedor1 --network synchrontainer-network -p 5000:5000 -e CONTAINERS=$CONTAINERS -e MY_CONTAINER=contenedor1 synchrontainer
+docker run -d --name contenedor2 --network synchrontainer-network -p 5001:5000 -e CONTAINERS=$CONTAINERS -e MY_CONTAINER=contenedor2 synchrontainer
 ```

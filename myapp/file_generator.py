@@ -11,8 +11,8 @@ PRIVATE_DIR = './sync_files/private'
 WAIT_INTERVAL = 60
 # Boolean para alternar entre directorios (True = público, False = privado)
 is_public = True
-# Nombre del contenedor (se puede obtener de variable de entorno)
-CONTAINER_NAME = os.getenv('HOSTNAME', 'container_unknown')
+# Nombre del contenedor (se obtiene de la variable MY_CONTAINER que pasamos en docker run)
+CONTAINER_NAME = os.getenv('MY_CONTAINER', 'container_unknown')
 
 def create_random_file():
   """
