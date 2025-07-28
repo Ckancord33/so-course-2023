@@ -67,7 +67,7 @@ def has_file(filename):
     else:
         return jsonify({'has_file': False})
 
-# 3. Endpoint para que un peer entregue un archivo a otro peer
+# 3. Endpoint para que un peer entregue un archivo a otro contenedor
 @app.route('/internal/get-file/<path:filename>')
 def get_file(filename):
     """
