@@ -78,18 +78,19 @@ def get_file(filename):
         return send_from_directory(PUBLIC_DIR, filename, as_attachment=True)
     except FileNotFoundError:
         return "Archivo no encontrado", 404
-# 4. Endpoint para subir archivos al contenedor actual
- def generate_file(filename):
- @app.route('/internal/upload/<path:filename>',methods=['POST']) 
 
- file_path = os.path.join(PUBLIC_DIR, filename)
-  try:
-        with open(file_path, 'wb') as f:
-            f.write(request.data)
-        return jsonify({'status': 'success', 'message': f'Archivo {filename} guardado.'})
+# Endpoint 4: llamado internamente en el contenedor destino
+@app.route('/internal/create-file/<path:name_ext>', methods=['POST'])
+def create_file(name_ext):
+    file_path = os.path.join(PUBLIC_DIR, name_ext)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    try:
+        with open(file_path, 'w') as f:
+            f.write(f"{name_ext}\n")
+        return jsonify({'status': 'success', 'message': f'{name_ext} creado'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
 
 # --- ENDPOINTS DEL PROYECTO (Externos) ---
 
@@ -201,6 +202,8 @@ def download_file(name_ext):
 # 4. Endpoint para subir un archivo a un contenedor
 #    Responde a URLs como: /upload/abcde12345/nuevo_archivo.txt
 #    Nota: Este endpoint necesitará usar el método POST en el futuro.
+
+
 @app.route('/upload/<uid>/<path:name_ext>')
 def upload_file(uid, name_ext):
   """
@@ -226,6 +229,19 @@ def upload_file(uid, name_ext):
     'message': f'Aquí se subiría el archivo {name_ext} al contenedor {uid}.'
   })
 >>>>>>> b6cc54be3a247981258de029a59f5e7549de1e91
+=======
+def upload_file_to_container(uid, name_ext):
+    url = f'http://{uid}:5000/internal/create-file/{name_ext}'
+    try:
+        response = requests.post(url)
+        return response.json()
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+        
+
+
+>>>>>>> b2c5d0488eaa4b4512af024f181ba3f74dd34c0a
 
 # --- Endpoint de prueba para la raíz ---
 @app.route('/')
