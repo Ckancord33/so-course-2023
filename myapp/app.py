@@ -79,6 +79,19 @@ def get_file(filename):
     except FileNotFoundError:
         return "Archivo no encontrado", 404
 
+# Endpoint 4: llamado internamente en el contenedor destino
+@app.route('/internal/create-file/<path:name_ext>', methods=['POST'])
+def create_file(name_ext):
+    file_path = os.path.join(PUBLIC_DIR, name_ext)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    try:
+        with open(file_path, 'w') as f:
+            f.write(f"{name_ext}\n")
+        return jsonify({'status': 'success', 'message': f'{name_ext} creado'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 # --- ENDPOINTS DEL PROYECTO (Externos) ---
 
 # 1. Endpoint para listar archivos de un contenedor específico
@@ -189,15 +202,20 @@ def download_file(name_ext):
 # 4. Endpoint para subir un archivo a un contenedor
 #    Responde a URLs como: /upload/abcde12345/nuevo_archivo.txt
 #    Nota: Este endpoint necesitará usar el método POST en el futuro.
+
+
 @app.route('/upload/<uid>/<path:name_ext>')
-def upload_file(uid, name_ext):
-  """
-  Permite subir un archivo a un contenedor específico.
-  Por ahora, solo devuelve un mensaje de prueba.
-  """
-  return jsonify({
-    'message': f'Aquí se subiría el archivo {name_ext} al contenedor {uid}.'
-  })
+def upload_file_to_container(uid, name_ext):
+    url = f'http://{uid}:5000/internal/create-file/{name_ext}'
+    try:
+        response = requests.post(url)
+        return response.json()
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+        
+
+
 
 # --- Endpoint de prueba para la raíz ---
 @app.route('/')
